@@ -50,10 +50,6 @@ local Library = {
 
     KeybindListVisible = true;
     KeybindShowOnlyActive = false;
-
-    LogoUrl = 'https://files.catbox.moe/ns6bm4.png';
-    LogoCacheFolder = 'gompgompSettings';
-    LogoCachePath = 'gompgompSettings/logo.png';
 };
 
 local RainbowStep = 0
@@ -79,47 +75,6 @@ end))
 function Library:AttemptSave()
     if Library.SaveManager then
         Library.SaveManager:Save();
-    end;
-end;
-
-function Library:LoadLogoImage()
-    if not self.LogoImage then
-        return false;
-    end;
-
-    local Folder = self.LogoCacheFolder;
-    local Path = self.LogoCachePath;
-    local Url = self.LogoUrl;
-
-    if not isfolder(Folder) then
-        makefolder(Folder);
-    end;
-
-    if not isfile(Path) then
-        local Success, Data = pcall(game.HttpGet, game, Url);
-
-        if not Success or type(Data) ~= 'string' or #Data == 0 then
-            return false;
-        end;
-
-        writefile(Path, Data);
-    end;
-
-    if getcustomasset then
-        local AssetSuccess, AssetId = pcall(getcustomasset, Path);
-
-        if AssetSuccess and AssetId then
-            self.LogoImage.Image = AssetId;
-            return true;
-        end;
-    end;
-
-    return false;
-end;
-
-function Library:SetLogoVisibility(Bool)
-    if Library.Logo and Library.LogoImage and Library.LogoImage.Image ~= '' then
-        Library.Logo.Visible = Bool;
     end;
 end;
 
@@ -2462,26 +2417,6 @@ do
     Library.Watermark = WatermarkOuter;
     Library.WatermarkText = WatermarkLabel;
 
-    local LogoOuter = Library:Create('Frame', {
-        AnchorPoint = Vector2.new(0.5, 0.5);
-        BackgroundTransparency = 1;
-        Active = false;
-        Position = UDim2.new(0.5, 0, 0.5, 0);
-        Size = UDim2.fromOffset(280, 280);
-        Visible = false;
-        ZIndex = 50;
-        Parent = ScreenGui;
-    });
-
-    Library.Logo = LogoOuter;
-    Library.LogoImage = Library:Create('ImageLabel', {
-        BackgroundTransparency = 1;
-        Size = UDim2.new(1, 0, 1, 0);
-        ScaleType = Enum.ScaleType.Fit;
-        ZIndex = 1;
-        Parent = LogoOuter;
-    });
-
     local KeybindOuter = Library:Create('Frame', {
         AnchorPoint = Vector2.new(0, 0.5);
         BorderColor3 = Color3.new(0, 0, 0);
@@ -2644,6 +2579,17 @@ function Library:PlayIntro(Callback)
 
     Library.IntroPlayed = true;
 
+    local IntroDuration = 4;
+    local Start = tick();
+
+    local function WaitUntil(Elapsed)
+        local Remaining = Elapsed - (tick() - Start);
+
+        if Remaining > 0 then
+            task.wait(Remaining);
+        end;
+    end;
+
     local Intro = Library:Create('Frame', {
         BackgroundTransparency = 1;
         Size = UDim2.new(1, 0, 1, 0);
@@ -2686,44 +2632,35 @@ function Library:PlayIntro(Callback)
         Parent = Group;
     });
 
-    local Slam = TweenService:Create(Gomp1, TweenInfo.new(0.55, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
+    TweenService:Create(Gomp1, TweenInfo.new(1.2, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
         Position = UDim2.new(0.5, 0, 0.5, 0);
-    });
+    }):Play();
 
-    Slam:Play();
-    Slam.Completed:Wait();
-
-    task.wait(0.12);
+    WaitUntil(1.2);
 
     Gomp2.TextTransparency = 0;
-    Gomp2.AnchorPoint = Vector2.new(0, 0.5);
 
-    local Spread1 = TweenService:Create(Gomp1, TweenInfo.new(0.42, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+    TweenService:Create(Gomp1, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         AnchorPoint = Vector2.new(1, 0.5);
-        Position = UDim2.new(0.5, -6, 0.5, 0);
-    });
+        Position = UDim2.new(0.5, -6, 0.5, 0),
+    }):Play();
 
-    local Spread2 = TweenService:Create(Gomp2, TweenInfo.new(0.42, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, 6, 0.5, 0);
-    });
+    TweenService:Create(Gomp2, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0.5, 6, 0.5, 0),
+    }):Play();
 
-    Spread1:Play();
-    Spread2:Play();
-    Spread2.Completed:Wait();
+    WaitUntil(2.2);
+    WaitUntil(3);
 
-    task.wait(0.35);
-
-    local Fade1 = TweenService:Create(Gomp1, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(Gomp1, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         TextTransparency = 1;
-    });
+    }):Play();
 
-    local Fade2 = TweenService:Create(Gomp2, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(Gomp2, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         TextTransparency = 1;
-    });
+    }):Play();
 
-    Fade1:Play();
-    Fade2:Play();
-    Fade2.Completed:Wait();
+    WaitUntil(IntroDuration);
 
     Intro:Destroy();
 
@@ -3776,8 +3713,6 @@ function Library:CreateWindow(...)
         Outer.Visible = not Outer.Visible;
         ModalElement.Modal = Outer.Visible;
 
-        Library:SetLogoVisibility(Outer.Visible);
-
         local oIcon = Mouse.Icon;
         local State = InputService.MouseIconEnabled;
 
@@ -3835,19 +3770,9 @@ function Library:CreateWindow(...)
         end
     end))
 
-    Library:PlayIntro(function()
-        if Config.AutoShow then
-            task.spawn(Library.Toggle);
-        end;
-    end);
-
     Window.Holder = Outer;
 
     return Window;
 end;
-
-task.defer(function()
-    Library:LoadLogoImage();
-end);
 
 return Library
