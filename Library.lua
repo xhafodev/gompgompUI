@@ -32,7 +32,7 @@ local Library = {
     HudRegistry = {};
 
     Font = Enum.Font.Roboto;
-    FontColor = Color3.fromRGB(94, 94, 94);
+    FontColor = Color3.fromRGB(255, 255, 255);
     FontColor2 = Color3.fromRGB(255, 255, 255);
     MainColor = Color3.fromRGB(10, 10, 10);
     SelectedTabColor = Color3.fromRGB(10, 10, 10);
@@ -46,6 +46,12 @@ local Library = {
 
     Signals = {};
     ScreenGui = ScreenGui;
+
+    KeybindListVisible = true;
+
+    LogoUrl = 'https://files.catbox.moe/ns6bm4.png';
+    LogoCacheFolder = 'gompgompSettings';
+    LogoCachePath = 'gompgompSettings/logo.png';
 };
 
 local RainbowStep = 0
@@ -907,7 +913,7 @@ do
         });
 
         local NameLabel = Library:CreateLabel2({
-            Size = UDim2.new(0.5, -5, 1, 0);
+            Size = UDim2.new(1, -8, 1, 0);
             Position = UDim2.fromOffset(0, 0);
             TextXAlignment = Enum.TextXAlignment.Left;
             TextSize = 13;
@@ -916,9 +922,10 @@ do
             Parent = ContainerRow;
         }, true);
 
-        local KeyLabel = Library:CreateLabel({
-            Size = UDim2.new(0.5, -5, 1, 0);
-            Position = UDim2.new(0.5, 5, 0, 0);
+        local KeyLabel = Library:CreateLabel2({
+            Size = UDim2.new(0, 40, 1, 0);
+            AnchorPoint = Vector2.new(1, 0);
+            Position = UDim2.new(1, -5, 0, 0);
             TextXAlignment = Enum.TextXAlignment.Right;
             TextSize = 13;
             Text = FormatKey(KeyPicker.Value);
@@ -980,42 +987,19 @@ do
             end;
 
             local KeyText = FormatKey(KeyPicker.Value);
-            local IsBound = KeyText ~= 'none';
-            local ToggleActive = ParentObj.Type ~= 'Toggle' or ParentObj.Value;
 
             NameLabel.Text = Library:FormatText(Info.Text or '');
             KeyLabel.Text = KeyText;
+            KeyLabel.Size = UDim2.new(0, math.max(KeyLabel.TextBounds.X + 2, 24), 1, 0);
 
             ContainerRow.Visible = true;
-            NameLabel.TextColor3 = ToggleActive and Library.FontColor2 or Library.FontColor;
-            KeyLabel.TextColor3 = (IsBound and ToggleActive) and Library.FontColor2 or Library.FontColor;
+            NameLabel.TextColor3 = Library.FontColor2;
+            KeyLabel.TextColor3 = Library.FontColor2;
 
-            Library.RegistryMap[NameLabel].Properties.TextColor3 = ToggleActive and 'FontColor2' or 'FontColor';
-            Library.RegistryMap[KeyLabel].Properties.TextColor3 = (IsBound and ToggleActive) and 'FontColor2' or 'FontColor';
+            Library.RegistryMap[NameLabel].Properties.TextColor3 = 'FontColor2';
+            Library.RegistryMap[KeyLabel].Properties.TextColor3 = 'FontColor2';
 
-            Library.KeybindFrame.Visible = true;
-
-            local YSize = 0;
-            local XSize = 0;
-
-            for _, Row in next, Library.KeybindContainer:GetChildren() do
-                if Row:IsA('Frame') and Row.Visible then
-                    YSize = YSize + 18;
-                    local rowWidth = 0;
-
-                    for _, Label in next, Row:GetChildren() do
-                        if Label:IsA('TextLabel') then
-                            rowWidth = rowWidth + Label.TextBounds.X;
-                        end;
-                    end;
-
-                    if rowWidth > XSize then
-                        XSize = rowWidth;
-                    end;
-                end;
-            end;
-
-            Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 20, 180), 0, YSize + 28);
+            Library:RefreshKeybindList();
         end;
 
         function KeyPicker:GetState()
@@ -1813,15 +1797,11 @@ do
             return (Slider.Value - Slider.Min) / (Slider.Max - Slider.Min);
         end;
 
-        function Slider:Display(Tween)
+        function Slider:Display(Tween, Duration)
             local Suffix = Info.Suffix or '';
             local Scale = Slider:GetScale();
 
-            if Info.HideMax then
-                ValueLabel.Text = string.format('%s%s', Slider.Value, Suffix);
-            else
-                ValueLabel.Text = string.format('%s%s', Slider.Value, Suffix);
-            end;
+            ValueLabel.Text = string.format('%s%s', Slider.Value, Suffix);
 
             local TargetSize = UDim2.new(Scale, 0, 1, 0);
 
@@ -1830,7 +1810,7 @@ do
                     FillTween:Cancel();
                 end;
 
-                FillTween = TweenService:Create(Fill, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                FillTween = TweenService:Create(Fill, TweenInfo.new(Duration or 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
                     Size = TargetSize;
                 });
 
@@ -1885,7 +1865,7 @@ do
                     local OldValue = Slider.Value;
 
                     Slider.Value = nValue;
-                    Slider:Display(false);
+                    Slider:Display(true, 0.1);
 
                     if nValue ~= OldValue and Slider.Changed then
                         Slider.Changed(Slider.Value)
@@ -1899,12 +1879,12 @@ do
                     RenderStepped:Wait();
                 end;
 
-                Slider:Display(true);
+                Slider:Display(true, 0.18);
                 Library:AttemptSave();
             end;
         end);
 
-        Slider:Display(false);
+        Slider:Display(true, 0.18);
         Groupbox:AddBlank(Info.BlankSize or 8);
         Groupbox:Resize();
 
@@ -2355,9 +2335,10 @@ do
     });
 
     local WatermarkOuter = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 0);
         BorderColor3 = Color3.new(0, 0, 0);
-        Position = UDim2.new(0, 160, 0, -30);
-        Size = UDim2.new(0, 213, 0, 20);
+        Position = UDim2.new(0.5, 0, 0, 8);
+        Size = UDim2.new(0, 213, 0, 22);
         ZIndex = 200;
         Visible = false;
         Parent = ScreenGui;
@@ -2405,17 +2386,40 @@ do
 
     local WatermarkLabel = Library:CreateLabel2({
         Position = UDim2.new(0, 5, 0, 0);
-        Size = UDim2.new(1, -4, 1, 0);
+        Size = UDim2.new(1, -10, 1, 0);
         TextSize = 14;
         RichText = true;
-        TextXAlignment = Enum.TextXAlignment.Left;
+        TextXAlignment = Enum.TextXAlignment.Center;
         ZIndex = 203;
         Parent = InnerFrame;
     });
 
     Library.Watermark = WatermarkOuter;
     Library.WatermarkText = WatermarkLabel;
-    Library:MakeDraggable(Library.Watermark);
+
+    local LogoOuter = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 0.5);
+        BackgroundTransparency = 1;
+        Active = false;
+        Position = UDim2.new(0.5, 0, 0.5, 0);
+        Size = UDim2.fromOffset(256, 256);
+        Visible = false;
+        ZIndex = 150;
+        Parent = ScreenGui;
+    });
+
+    Library.Logo = LogoOuter;
+    Library.LogoImage = Library:Create('ImageLabel', {
+        BackgroundTransparency = 1;
+        Size = UDim2.new(1, 0, 1, 0);
+        ScaleType = Enum.ScaleType.Fit;
+        ZIndex = 1;
+        Parent = LogoOuter;
+    });
+
+    task.spawn(function()
+        Library:LoadLogoImage();
+    end);
 
 
 
@@ -2460,20 +2464,15 @@ do
         Parent = KeybindGradientFrame;
     });
 
-    local KeybindLabel = Library:CreateLabel({
+    local KeybindLabel = Library:CreateLabel2({
         Size = UDim2.new(1, -10, 0, 18);
         Position = UDim2.fromOffset(5, 2),
         TextXAlignment = Enum.TextXAlignment.Left,
         Text = 'keybinds';
         TextSize = 14;
-        TextColor3 = Library.AccentColor;
         ZIndex = 104;
         Parent = KeybindGradientFrame;
     });
-
-    Library:AddToRegistry(KeybindLabel, {
-        TextColor3 = 'AccentColor';
-    }, true);
 
     local KeybindSeparator = Library:Create('Frame', {
         BackgroundColor3 = Color3.new(1, 1, 1);
@@ -2500,6 +2499,7 @@ do
 
     Library:Create('UIPadding', {
         PaddingLeft = UDim.new(0, 5),
+        PaddingRight = UDim.new(0, 5),
         Parent = KeybindContainer,
     })
 
@@ -2510,6 +2510,88 @@ end;
 
 function Library:SetWatermarkVisibility(Bool)
     Library.Watermark.Visible = Bool;
+end;
+
+function Library:SetKeybindListVisible(Bool)
+    Library.KeybindListVisible = Bool;
+    Library:RefreshKeybindList();
+end;
+
+function Library:RefreshKeybindList()
+    if not Library.KeybindListVisible then
+        Library.KeybindFrame.Visible = false;
+        return;
+    end;
+
+    local YSize = 0;
+    local XSize = 0;
+    local HasRows = false;
+
+    for _, Row in next, Library.KeybindContainer:GetChildren() do
+        if Row:IsA('Frame') and Row.Visible then
+            HasRows = true;
+            YSize = YSize + 18;
+
+            local NameWidth = 0;
+            local KeyWidth = 0;
+
+            for _, Label in next, Row:GetChildren() do
+                if Label:IsA('TextLabel') then
+                    if Label.TextXAlignment == Enum.TextXAlignment.Right then
+                        KeyWidth = Label.TextBounds.X;
+                    else
+                        NameWidth = Label.TextBounds.X;
+                    end;
+                end;
+            end;
+
+            local RowWidth = NameWidth + KeyWidth + 30;
+            if RowWidth > XSize then
+                XSize = RowWidth;
+            end;
+        end;
+    end;
+
+    Library.KeybindFrame.Visible = HasRows;
+    Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 10, 160), 0, YSize + 28);
+end;
+
+function Library:LoadLogoImage()
+    if not self.LogoImage then
+        return;
+    end;
+
+    local Folder = self.LogoCacheFolder;
+    local Path = self.LogoCachePath;
+    local Url = self.LogoUrl;
+
+    if not isfolder(Folder) then
+        makefolder(Folder);
+    end;
+
+    if not isfile(Path) then
+        local Success, Data = pcall(game.HttpGet, game, Url);
+
+        if not Success or type(Data) ~= 'string' or #Data == 0 then
+            return;
+        end;
+
+        writefile(Path, Data);
+    end;
+
+    if getcustomasset then
+        local AssetSuccess, AssetId = pcall(getcustomasset, Path);
+
+        if AssetSuccess and AssetId then
+            self.LogoImage.Image = AssetId;
+        end;
+    end;
+end;
+
+function Library:SetLogoVisibility(Bool)
+    if Library.Logo then
+        Library.Logo.Visible = Bool;
+    end;
 end;
 
 function Library:StartWatermark()
@@ -3555,6 +3637,8 @@ function Library:CreateWindow(...)
     function Library.Toggle()
         Outer.Visible = not Outer.Visible;
         ModalElement.Modal = Outer.Visible;
+
+        Library:SetLogoVisibility(Outer.Visible);
 
         local oIcon = Mouse.Icon;
         local State = InputService.MouseIconEnabled;
