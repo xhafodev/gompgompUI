@@ -1020,53 +1020,25 @@ do
         KeyPicker.ParentObject = ParentObj;
         KeyPicker.RowLabel = RowLabel;
 
-        local Modes = Info.Modes or { 'Always', 'Toggle', 'Hold' };
-        local ModeButtons = {};
+        function KeyPicker:GetState()
+            if KeyPicker.Value == 'None' or KeyPicker.Value == '' then
+                return false;
+            end;
 
-        for Idx, Mode in next, Modes do
-            local ModeButton = {};
+            if KeyPicker.Mode == 'Always' then
+                return true;
+            elseif KeyPicker.Mode == 'Hold' then
+                local Key = KeyPicker.Value;
 
-            local Label = Library:CreateLabel({
-                Size = UDim2.new(1, 0, 0, 15);
-                TextSize = 13;
-                Text = Mode;
-                ZIndex = 16;
-                Parent = ModeSelectInner;
-            });
-
-            function ModeButton:Select()
-                for _, Button in next, ModeButtons do
-                    Button:Deselect();
+                if Key == 'MB1' or Key == 'MB2' then
+                    return Key == 'MB1' and InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+                        or Key == 'MB2' and InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2);
+                else
+                    return InputService:IsKeyDown(Enum.KeyCode[KeyPicker.Value]);
                 end;
-
-                KeyPicker.Mode = Mode;
-
-                Label.TextColor3 = Library.AccentColor;
-                Library.RegistryMap[Label].Properties.TextColor3 = 'AccentColor';
-
-                ModeSelectOuter.Visible = false;
-                KeyPicker:Update();
+            else
+                return KeyPicker.Toggled;
             end;
-
-            function ModeButton:Deselect()
-                KeyPicker.Mode = nil;
-
-                Label.TextColor3 = Library.FontColor;
-                Library.RegistryMap[Label].Properties.TextColor3 = 'FontColor';
-            end;
-
-            Label.InputBegan:Connect(function(Input)
-                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    ModeButton:Select();
-                    Library:AttemptSave();
-                end;
-            end);
-
-            if Mode == KeyPicker.Mode then
-                ModeButton:Select();
-            end;
-
-            ModeButtons[Mode] = ModeButton;
         end;
 
         function KeyPicker:Update()
@@ -1114,25 +1086,53 @@ do
             Library:RefreshKeybindList();
         end;
 
-        function KeyPicker:GetState()
-            if KeyPicker.Value == 'None' or KeyPicker.Value == '' then
-                return false;
-            end;
+        local Modes = Info.Modes or { 'Always', 'Toggle', 'Hold' };
+        local ModeButtons = {};
 
-            if KeyPicker.Mode == 'Always' then
-                return true;
-            elseif KeyPicker.Mode == 'Hold' then
-                local Key = KeyPicker.Value;
+        for Idx, Mode in next, Modes do
+            local ModeButton = {};
 
-                if Key == 'MB1' or Key == 'MB2' then
-                    return Key == 'MB1' and InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-                        or Key == 'MB2' and InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2);
-                else
-                    return InputService:IsKeyDown(Enum.KeyCode[KeyPicker.Value]);
+            local Label = Library:CreateLabel({
+                Size = UDim2.new(1, 0, 0, 15);
+                TextSize = 13;
+                Text = Mode;
+                ZIndex = 16;
+                Parent = ModeSelectInner;
+            });
+
+            function ModeButton:Select()
+                for _, Button in next, ModeButtons do
+                    Button:Deselect();
                 end;
-            else
-                return KeyPicker.Toggled;
+
+                KeyPicker.Mode = Mode;
+
+                Label.TextColor3 = Library.AccentColor;
+                Library.RegistryMap[Label].Properties.TextColor3 = 'AccentColor';
+
+                ModeSelectOuter.Visible = false;
+                KeyPicker:Update();
             end;
+
+            function ModeButton:Deselect()
+                KeyPicker.Mode = nil;
+
+                Label.TextColor3 = Library.FontColor;
+                Library.RegistryMap[Label].Properties.TextColor3 = 'FontColor';
+            end;
+
+            Label.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    ModeButton:Select();
+                    Library:AttemptSave();
+                end;
+            end);
+
+            if Mode == KeyPicker.Mode then
+                ModeButton:Select();
+            end;
+
+            ModeButtons[Mode] = ModeButton;
         end;
 
         function KeyPicker:SetValue(Data)
