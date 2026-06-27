@@ -16,7 +16,7 @@ local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 local ScreenGui = Instance.new('ScreenGui');
 ProtectGui(ScreenGui);
 
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 ScreenGui.Parent = CoreGui;
 
 local Toggles = {};
@@ -32,8 +32,6 @@ local Library = {
     HudRegistry = {};
 
     Font = Enum.Font.Roboto;
-    IntroTextSize = 52;
-    IntroPixelGap = 60;
     FontColor = Color3.fromRGB(255, 255, 255);
     FontColor2 = Color3.fromRGB(255, 255, 255);
     MainColor = Color3.fromRGB(10, 10, 10);
@@ -51,7 +49,44 @@ local Library = {
 
     KeybindListVisible = true;
     KeybindShowOnlyActive = false;
+    KeybindTransparency = 0;
 };
+
+function Library:Tween(Instance, Goal, Duration, Style, Direction)
+    local Tween = TweenService:Create(
+        Instance,
+        TweenInfo.new(Duration or 0.22, Style or Enum.EasingStyle.Quad, Direction or Enum.EasingDirection.Out),
+        Goal
+    );
+
+    Tween:Play();
+    return Tween;
+end;
+
+function Library:RefreshAllKeybinds()
+    for _, Option in next, Options do
+        if Option.Type == 'KeyPicker' and Option.Update then
+            Option:Update();
+        end;
+    end;
+end;
+
+function Library:SetKeybindShowOnlyActive(Bool)
+    Library.KeybindShowOnlyActive = Bool;
+    Library:RefreshAllKeybinds();
+end;
+
+function Library:SetKeybindTransparency(Value)
+    Library.KeybindTransparency = math.clamp(Value, 0, 1);
+
+    if Library.KeybindInner then
+        Library.KeybindInner.BackgroundTransparency = Library.KeybindTransparency;
+    end;
+
+    if Library.KeybindGradientFrame then
+        Library.KeybindGradientFrame.BackgroundTransparency = Library.KeybindTransparency;
+    end;
+end;
 
 local RainbowStep = 0
 local Hue = 0
@@ -79,10 +114,6 @@ function Library:AttemptSave()
     end;
 end;
 
-function Library:LoadLogoImage()
-    return false;
-end;
-
 function Library:Create(Class, Properties)
     local _Instance = Class;
 
@@ -95,47 +126,6 @@ function Library:Create(Class, Properties)
     end;
 
     return _Instance;
-end;
-
-function Library:GetPixelFontFace()
-    if Library._PixelFontFace then
-        return Library._PixelFontFace;
-    end;
-
-    local Ok, Face = pcall(function()
-        return Font.new('rbxasset://fonts/families/PressStart2P.json', Enum.FontWeight.Regular, Enum.FontStyle.Normal);
-    end);
-
-    if Ok and Face then
-        Library._PixelFontFace = Face;
-    else
-        Ok, Face = pcall(function()
-            return Font.fromEnum(Enum.Font.RobotoMono);
-        end);
-
-        Library._PixelFontFace = Ok and Face or Font.fromEnum(Enum.Font.Code);
-    end;
-
-    return Library._PixelFontFace;
-end;
-
-function Library:TweenIntroStep(Duration, EasingStyle, EasingDirection, Step)
-    local Info = TweenInfo.new(Duration, EasingStyle, EasingDirection);
-    local StartTime = tick();
-
-    while true do
-        local Elapsed = tick() - StartTime;
-        local Alpha = math.clamp(Elapsed / Duration, 0, 1);
-        local T = TweenService:GetValue(Alpha, Info.EasingStyle, Info.EasingDirection);
-
-        Step(T);
-
-        if Alpha >= 1 then
-            break;
-        end;
-
-        RenderStepped:Wait();
-    end;
 end;
 
 function Library:FormatText(Text)
@@ -892,10 +882,10 @@ do
         local PickOuter = Library:Create('Frame', {
             BorderColor3 = Color3.new(0, 0, 0);
             Size = UDim2.new(0, 28, 0, 15);
-            AnchorPoint = Vector2.new(1, 0);
-            Position = UDim2.new(1, 0, 0, 0);
+            AnchorPoint = Vector2.new(1, 0.5);
+            Position = UDim2.new(1, -2, 0.5, 0);
             ZIndex = 6;
-            Parent = (ParentObj.Type == 'Toggle' and ParentObj.AddonHolder) or ToggleLabel;
+            Parent = ParentObj.KeybindHost or ParentObj.TextLabel;
         });
 
         local PickInner = Library:Create('Frame', {
@@ -958,8 +948,6 @@ do
             Parent = Library.KeybindContainer;
         });
 
-        KeyPicker.ContainerRow = ContainerRow;
-
         local NameLabel = Library:CreateLabel2({
             Size = UDim2.new(1, -36, 1, 0);
             Position = UDim2.fromOffset(0, 0);
@@ -980,6 +968,8 @@ do
             ZIndex = 111;
             Parent = ContainerRow;
         }, true);
+
+        KeyPicker.ParentObject = ParentObj;
 
         local Modes = Info.Modes or { 'Always', 'Toggle', 'Hold' };
         local ModeButtons = {};
@@ -1034,20 +1024,32 @@ do
                 return;
             end;
 
-            local KeyText = FormatKey(KeyPicker.Value);
-            local HasKey = KeyText ~= 'none';
-            local IsOn = ParentObj.Type ~= 'Toggle' or ParentObj.Value;
-            local ShowRow = true;
-
-            if Library.KeybindShowOnlyActive then
-                ShowRow = IsOn and HasKey;
+            if not Library.KeybindListVisible then
+                ContainerRow.Visible = false;
+                return;
             end;
+
+            local KeyText = FormatKey(KeyPicker.Value);
 
             NameLabel.Text = Library:FormatText(Info.Text or '');
             KeyLabel.Text = KeyText;
-            KeyLabel.Size = UDim2.new(0, math.max(KeyLabel.TextBounds.X + 4, 28), 1, 0);
+            KeyLabel.Size = UDim2.new(0, math.max(KeyLabel.TextBounds.X + 4, 20), 1, 0);
 
-            ContainerRow.Visible = ShowRow;
+            local IsBound = KeyPicker.Value ~= 'None' and KeyPicker.Value ~= '';
+            local IsActive = ParentObj.Type ~= 'Toggle' or ParentObj.Value;
+            local ShouldShow = true;
+
+            if Library.KeybindShowOnlyActive then
+                ShouldShow = IsBound and IsActive;
+            end;
+
+            ContainerRow.Visible = ShouldShow;
+
+            if not ShouldShow then
+                Library:RefreshKeybindList();
+                return;
+            end;
+
             NameLabel.TextColor3 = Library.FontColor2;
             KeyLabel.TextColor3 = Library.FontColor2;
 
@@ -1252,16 +1254,11 @@ do
             local Y = select(2, Library:GetTextBounds(Text, Library.Font, 14, Vector2.new(TextLabel.AbsoluteSize.X, math.huge)))
             TextLabel.Size = UDim2.new(1, -4, 0, Y)
         else
-            Library:Create('UIListLayout', {
-                Padding = UDim.new(0, 4);
-                FillDirection = Enum.FillDirection.Horizontal;
-                HorizontalAlignment = Enum.HorizontalAlignment.Right;
-                SortOrder = Enum.SortOrder.LayoutOrder;
-                Parent = TextLabel;
-            });
+            Label.KeybindHost = TextLabel;
         end
 
         Label.TextLabel = TextLabel;
+        Label.KeybindHost = TextLabel;
         Label.Container = Container;
 
         function Label:SetText(Text)
@@ -1650,6 +1647,7 @@ do
         local ToggleOuter = Library:Create('Frame', {
             BorderColor3 = Color3.new(0, 0, 0);
             Size = UDim2.new(0, 13, 0, 13);
+            Position = UDim2.new(0, 0, 0, 1);
             ZIndex = 5;
             Parent = ToggleRow;
         });
@@ -1673,21 +1671,12 @@ do
         });
 
         local ToggleLabel = Library:CreateLabel({
-            Size = UDim2.new(1, -58, 1, 0);
-            Position = UDim2.new(0, 19, 0, 0);
+            Size = UDim2.new(1, -20, 1, 0);
+            Position = UDim2.new(0, 18, 0, 0);
             TextSize = 14;
             Text = Info.Text;
             TextXAlignment = Enum.TextXAlignment.Left;
             ZIndex = 6;
-            Parent = ToggleRow;
-        });
-
-        Toggle.AddonHolder = Library:Create('Frame', {
-            BackgroundTransparency = 1;
-            Size = UDim2.new(0, 32, 1, 0);
-            AnchorPoint = Vector2.new(1, 0);
-            Position = UDim2.new(1, 0, 0, 0);
-            ZIndex = 7;
             Parent = ToggleRow;
         });
 
@@ -1712,8 +1701,13 @@ do
         end
 
         function Toggle:Display()
-            ToggleInner.BackgroundColor3 = Toggle.Value and Library.AccentColor or Library.MainColor;
-            ToggleInner.BorderColor3 = Toggle.Value and Library.AccentColorDark or Library.OutlineColor;
+            local TargetBg = Toggle.Value and Library.AccentColor or Library.MainColor;
+            local TargetBorder = Toggle.Value and Library.AccentColorDark or Library.OutlineColor;
+
+            Library:Tween(ToggleInner, {
+                BackgroundColor3 = TargetBg;
+                BorderColor3 = TargetBorder;
+            }, 0.15);
 
             Library.RegistryMap[ToggleInner].Properties.BackgroundColor3 = Toggle.Value and 'AccentColor' or 'MainColor';
             Library.RegistryMap[ToggleInner].Properties.BorderColor3 = Toggle.Value and 'AccentColorDark' or 'OutlineColor';
@@ -1733,11 +1727,12 @@ do
             for _, Addon in next, Toggle.Addons do
                 if Addon.Type == 'KeyPicker' and Addon.SyncToggleState then
                     Addon.Toggled = Bool
-                end;
+                    Addon:Update()
+                end
+            end
 
-                if Addon.Type == 'KeyPicker' and Addon.Update then
-                    Addon:Update();
-                end;
+            if Library.KeybindShowOnlyActive then
+                Library:RefreshAllKeybinds();
             end
 
             if Toggle.Changed then
@@ -1757,6 +1752,7 @@ do
         Groupbox:Resize();
 
         Toggle.TextLabel = ToggleLabel;
+        Toggle.KeybindHost = ToggleRow;
         Toggle.Container = Container;
         setmetatable(Toggle, BaseAddons);
 
@@ -2463,6 +2459,36 @@ do
     Library.Watermark = WatermarkOuter;
     Library.WatermarkText = WatermarkLabel;
 
+    local LogoOuter = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 0.5);
+        BackgroundTransparency = 1;
+        Active = false;
+        Position = UDim2.new(0.5, 0, 0.5, 0);
+        Size = UDim2.new(0, 320, 0, 80);
+        Visible = false;
+        ZIndex = 150;
+        Parent = ScreenGui;
+    });
+
+    Library.Logo = LogoOuter;
+    Library.LogoScale = Library:Create('UIScale', {
+        Scale = 1;
+        Parent = LogoOuter;
+    });
+
+    Library.LogoText = Library:CreateLabel2({
+        Size = UDim2.new(1, 0, 1, 0);
+        RichText = true;
+        Text = '<font color="rgb(255,255,255)">gomp</font><font color="rgb(100,104,173)">gomp</font>';
+        TextSize = 42;
+        TextXAlignment = Enum.TextXAlignment.Center;
+        TextYAlignment = Enum.TextYAlignment.Center;
+        ZIndex = 1;
+        Parent = LogoOuter;
+    });
+
+
+
     local KeybindOuter = Library:Create('Frame', {
         AnchorPoint = Vector2.new(0, 0.5);
         BorderColor3 = Color3.new(0, 0, 0);
@@ -2504,10 +2530,14 @@ do
         Parent = KeybindGradientFrame;
     });
 
+    Library.KeybindInner = KeybindInner;
+    Library.KeybindGradientFrame = KeybindGradientFrame;
+
     local KeybindLabel = Library:CreateLabel2({
-        Size = UDim2.new(1, -10, 0, 18);
-        Position = UDim2.fromOffset(5, 2),
-        TextXAlignment = Enum.TextXAlignment.Left,
+        AnchorPoint = Vector2.new(0.5, 0);
+        Size = UDim2.new(1, 0, 0, 14);
+        Position = UDim2.new(0.5, 0, 0, 0);
+        TextXAlignment = Enum.TextXAlignment.Center,
         Text = 'keybinds';
         TextSize = 14;
         ZIndex = 104;
@@ -2517,7 +2547,7 @@ do
     local KeybindSeparator = Library:Create('Frame', {
         BackgroundColor3 = Color3.new(1, 1, 1);
         BorderSizePixel = 0;
-        Position = UDim2.new(0, 0, 0, 18);
+        Position = UDim2.new(0, 0, 0, 15);
         Size = UDim2.new(1, 0, 0, 1);
         ZIndex = 104;
         Parent = KeybindGradientFrame;
@@ -2525,8 +2555,8 @@ do
 
     local KeybindContainer = Library:Create('Frame', {
         BackgroundTransparency = 1;
-        Size = UDim2.new(1, 0, 1, -22);
-        Position = UDim2.new(0, 0, 0, 22);
+        Size = UDim2.new(1, 0, 1, -18);
+        Position = UDim2.new(0, 0, 0, 18);
         ZIndex = 1;
         Parent = KeybindGradientFrame;
     });
@@ -2557,24 +2587,6 @@ function Library:SetKeybindListVisible(Bool)
     Library:RefreshKeybindList();
 end;
 
-function Library:SetKeybindShowOnlyActive(Bool)
-    Library.KeybindShowOnlyActive = Bool;
-
-    for _, Option in next, Options do
-        if type(Option) == 'table' and Option.Type == 'KeyPicker' and Option.Update then
-            Option:Update();
-        end;
-    end;
-end;
-
-function Library:RefreshAllKeybinds()
-    for _, Option in next, Options do
-        if type(Option) == 'table' and Option.Type == 'KeyPicker' and Option.Update then
-            Option:Update();
-        end;
-    end;
-end;
-
 function Library:RefreshKeybindList()
     if not Library.KeybindListVisible then
         Library.KeybindFrame.Visible = false;
@@ -2582,7 +2594,7 @@ function Library:RefreshKeybindList()
     end;
 
     local YSize = 0;
-    local XSize = 160;
+    local XSize = 0;
     local HasRows = false;
 
     for _, Row in next, Library.KeybindContainer:GetChildren() do
@@ -2595,15 +2607,15 @@ function Library:RefreshKeybindList()
 
             for _, Label in next, Row:GetChildren() do
                 if Label:IsA('TextLabel') then
-                    if Label.AnchorPoint.X == 1 then
-                        KeyWidth = math.max(KeyWidth, Label.TextBounds.X + 4);
+                    if Label.TextXAlignment == Enum.TextXAlignment.Right then
+                        KeyWidth = Label.TextBounds.X;
                     else
-                        NameWidth = math.max(NameWidth, Label.TextBounds.X);
+                        NameWidth = Label.TextBounds.X;
                     end;
                 end;
             end;
 
-            local RowWidth = NameWidth + KeyWidth + 20;
+            local RowWidth = NameWidth + KeyWidth + 30;
             if RowWidth > XSize then
                 XSize = RowWidth;
             end;
@@ -2611,189 +2623,19 @@ function Library:RefreshKeybindList()
     end;
 
     Library.KeybindFrame.Visible = HasRows;
-    Library.KeybindFrame.Size = UDim2.new(0, XSize, 0, YSize + 28);
+    Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 16, 160), 0, YSize + 24);
 end;
 
-function Library:CreateIntroDrawText(Text, Color)
-    local Label = Drawing.new('Text');
-
-    Label.Text = Text;
-    Label.Font = 3;
-    Label.Size = Library.IntroTextSize;
-    Label.Color = Color;
-    Label.Outline = true;
-    Label.OutlineColor = Color3.new(0, 0, 0);
-    Label.Center = true;
-    Label.Visible = true;
-    Label.Transparency = 0;
-
-    return Label;
+function Library:SetLogoText(Text)
+    if Library.LogoText then
+        Library.LogoText.Text = Text;
+    end;
 end;
 
-function Library:PlayIntro(Callback)
-    if Library.IntroPlayed then
-        if Callback then
-            Callback();
-        end;
-
-        return;
+function Library:SetLogoVisibility(Bool)
+    if Library.Logo then
+        Library.Logo.Visible = Bool;
     end;
-
-    Library.IntroPlayed = true;
-
-    local IntroDuration = 7;
-    local Start = tick();
-    local Camera = Workspace.CurrentCamera;
-
-    local function GetCenter()
-        local Viewport = Camera.ViewportSize;
-
-        return Viewport.X / 2, Viewport.Y / 2;
-    end;
-
-    local function WaitUntil(Elapsed)
-        local Remaining = Elapsed - (tick() - Start);
-
-        if Remaining > 0 then
-            task.wait(Remaining);
-        end;
-    end;
-
-    local function FinishIntro()
-        if Callback then
-            Callback();
-        end;
-    end;
-
-    local UseDrawing = typeof(Drawing) == 'table' and typeof(Drawing.new) == 'function';
-
-    if UseDrawing then
-        local CenterX, CenterY = GetCenter();
-        local Gap = Library.IntroPixelGap;
-
-        local Gomp1 = Library:CreateIntroDrawText('gomp', Library.FontColor2);
-        local Gomp2 = Library:CreateIntroDrawText('gomp', Library.AccentColor);
-
-        Gomp1.Position = Vector2.new(CenterX, CenterY - 220);
-        Gomp2.Position = Vector2.new(CenterX + Gap * 3, CenterY);
-        Gomp2.Transparency = 1;
-
-        Library:TweenIntroStep(2, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out, function(T)
-            Gomp1.Position = Vector2.new(CenterX, CenterY - 220 + (220 * T));
-        end);
-
-        WaitUntil(2);
-
-        Gomp2.Transparency = 0;
-
-        local Gomp1Start = Gomp1.Position;
-        local Gomp1Goal = Vector2.new(CenterX - Gap, CenterY);
-        local Gomp2Start = Gomp2.Position;
-        local Gomp2Goal = Vector2.new(CenterX + Gap, CenterY);
-
-        Library:TweenIntroStep(1.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, function(T)
-            Gomp1.Position = Gomp1Start:Lerp(Gomp1Goal, T);
-            Gomp2.Position = Gomp2Start:Lerp(Gomp2Goal, T);
-        end);
-
-        WaitUntil(4);
-        WaitUntil(5.5);
-
-        Library:TweenIntroStep(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, function(T)
-            Gomp1.Transparency = T;
-            Gomp2.Transparency = T;
-        end);
-
-        WaitUntil(IntroDuration);
-
-        Gomp1:Remove();
-        Gomp2:Remove();
-
-        FinishIntro();
-
-        return;
-    end;
-
-    local Intro = Library:Create('Frame', {
-        BackgroundTransparency = 1;
-        Size = UDim2.new(1, 0, 1, 0);
-        ZIndex = 500;
-        Parent = ScreenGui;
-    });
-
-    local Group = Library:Create('Frame', {
-        BackgroundTransparency = 1;
-        AnchorPoint = Vector2.new(0.5, 0.5);
-        Position = UDim2.new(0.5, 0, 0.5, 0);
-        Size = UDim2.fromOffset(480, 120);
-        ZIndex = 501;
-        Parent = Intro;
-    });
-
-    local PixelFace = Library:GetPixelFontFace();
-
-    local Gomp1 = Library:Create('TextLabel', {
-        BackgroundTransparency = 1;
-        FontFace = PixelFace;
-        Text = 'gomp';
-        TextColor3 = Library.FontColor2;
-        TextSize = Library.IntroTextSize;
-        TextStrokeTransparency = 0;
-        Size = UDim2.fromOffset(180, 100);
-        AnchorPoint = Vector2.new(0.5, 0.5);
-        Position = UDim2.new(0.5, 0, 0.5, -220);
-        ZIndex = 502;
-        Parent = Group;
-    });
-
-    local Gomp2 = Library:Create('TextLabel', {
-        BackgroundTransparency = 1;
-        FontFace = PixelFace;
-        Text = 'gomp';
-        TextColor3 = Library.AccentColor;
-        TextSize = Library.IntroTextSize;
-        TextStrokeTransparency = 0;
-        Size = UDim2.fromOffset(180, 100);
-        AnchorPoint = Vector2.new(0, 0.5);
-        Position = UDim2.new(1.35, 0, 0.5, 0);
-        TextTransparency = 1;
-        ZIndex = 502;
-        Parent = Group;
-    });
-
-    TweenService:Create(Gomp1, TweenInfo.new(2, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, 0, 0.5, 0);
-    }):Play();
-
-    WaitUntil(2);
-
-    Gomp2.TextTransparency = 0;
-
-    TweenService:Create(Gomp1, TweenInfo.new(1.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        AnchorPoint = Vector2.new(1, 0.5);
-        Position = UDim2.new(0.5, -8, 0.5, 0),
-    }):Play();
-
-    TweenService:Create(Gomp2, TweenInfo.new(1.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, 8, 0.5, 0),
-    }):Play();
-
-    WaitUntil(4);
-    WaitUntil(5.5);
-
-    TweenService:Create(Gomp1, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        TextTransparency = 1;
-    }):Play();
-
-    TweenService:Create(Gomp2, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        TextTransparency = 1;
-    }):Play();
-
-    WaitUntil(IntroDuration);
-
-    Intro:Destroy();
-
-    FinishIntro();
 end;
 
 function Library:StartWatermark()
@@ -2987,6 +2829,14 @@ function Library:CreateWindow(...)
         Parent = ScreenGui;
     });
 
+    local WindowScale = Library:Create('UIScale', {
+        Scale = 1;
+        Parent = Outer;
+    });
+
+    Library.WindowScale = WindowScale;
+    Library.WindowOuter = Outer;
+
     Library:MakeDraggable(Outer, 25);
 
     local Inner = Library:Create('Frame', {
@@ -2995,7 +2845,7 @@ function Library:CreateWindow(...)
         BorderMode = Enum.BorderMode.Inset;
         Position = UDim2.new(0, 1, 0, 1);
         Size = UDim2.new(1, -2, 1, -2);
-        ZIndex = 2;
+        ZIndex = 1;
         Parent = Outer;
     });
 
@@ -3014,6 +2864,8 @@ function Library:CreateWindow(...)
         ZIndex = 1;
         Parent = Inner;
     });
+
+    Library:SetLogoText(Config.Title or '');
 
     local MainSectionOuter = Library:Create('Frame', {
         BackgroundColor3 = Library.BackgroundColor;
@@ -3117,6 +2969,7 @@ function Library:CreateWindow(...)
 
     function Window:SetWindowTitle(Title)
         WindowLabel.Text = Title;
+        Library:SetLogoText(Title);
     end;
 
     function Window:AddTab(Name)
@@ -3249,14 +3102,22 @@ function Library:CreateWindow(...)
             end;
         end;
 
+        function Tab:AnimateFrame(Frame)
+            Frame.Visible = true;
+            Frame.Position = UDim2.new(0, 0, 0, 8);
+            Library:Tween(Frame, { Position = UDim2.new(0, 0, 0, 0) }, 0.2);
+        end;
+
         function Tab:ShowTab()
             for _, OtherTab in next, Window.Tabs do
                 OtherTab:HideTab();
             end;
 
-            TabFrame.Visible = true;
+            Tab:AnimateFrame(TabFrame);
             TabButtonLabel.TextColor3 = Library.FontColor2;
             Highlight.Visible = true;
+            Highlight.Size = UDim2.new(0, 0, 0, 1);
+            Library:Tween(Highlight, { Size = UDim2.new(1, 0, 0, 1) }, 0.18);
             Library.RegistryMap[TabButtonLabel].Properties.TextColor3 = 'FontColor2';
 
             Tab:HideAllSubTabRows();
@@ -3376,6 +3237,9 @@ function Library:CreateWindow(...)
                 end;
 
                 Content.Visible = true;
+                Content.Position = UDim2.new(0, 0, 0, 6);
+                Library:Tween(Content, { Position = UDim2.new(0, 0, 0, 0) }, 0.18);
+
                 Tab.LeftSide = SubTab.LeftSide;
                 Tab.RightSide = SubTab.RightSide;
                 Tab.ActiveSubTabName = Name;
@@ -3383,6 +3247,7 @@ function Library:CreateWindow(...)
                 SubTabLabel.TextColor3 = Library.FontColor2;
                 Library.RegistryMap[SubTabLabel].Properties.TextColor3 = 'FontColor2';
                 SubTabUnderline.Visible = true;
+                Library:Tween(SubTabUnderline, { Size = UDim2.new(1, 0, 0, 1) }, 0.16);
             end;
 
             function SubTab:Hide()
@@ -3837,30 +3702,61 @@ function Library:CreateWindow(...)
     });
 
     function Library.Toggle()
-        Outer.Visible = not Outer.Visible;
-        ModalElement.Modal = Outer.Visible;
+        local Opening = not Outer.Visible;
 
-        local oIcon = Mouse.Icon;
-        local State = InputService.MouseIconEnabled;
+        if Opening then
+            Outer.Visible = true;
+            ModalElement.Modal = true;
+            Library:SetLogoVisibility(true);
 
-        local Cursor = Drawing.new('Triangle');
-        Cursor.Thickness = 1;
-        Cursor.Filled = true;
+            WindowScale.Scale = 0.94;
+            Library:Tween(WindowScale, { Scale = 1 }, 0.24);
 
-        while Outer.Visible do
-            local mPos = Workspace.CurrentCamera:WorldToViewportPoint(Mouse.Hit.p);
+            if Library.LogoScale then
+                Library.LogoScale.Scale = 0.9;
+                Library:Tween(Library.LogoScale, { Scale = 1 }, 0.28);
+            end;
+        else
+            local CloseTween = Library:Tween(WindowScale, { Scale = 0.94 }, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In);
 
-            Cursor.Color = Library.AccentColor;
-            Cursor.PointA = Vector2.new(mPos.X, mPos.Y);
-            Cursor.PointB = Vector2.new(mPos.X, mPos.Y) + Vector2.new(6, 14);
-            Cursor.PointC = Vector2.new(mPos.X, mPos.Y) + Vector2.new(-6, 14);
+            if Library.LogoScale then
+                Library:Tween(Library.LogoScale, { Scale = 0.9 }, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In);
+            end;
 
-            Cursor.Visible = not InputService.MouseIconEnabled;
+            CloseTween.Completed:Connect(function()
+                Outer.Visible = false;
+                ModalElement.Modal = false;
+                Library:SetLogoVisibility(false);
+                WindowScale.Scale = 1;
 
-            RenderStepped:Wait();
+                if Library.LogoScale then
+                    Library.LogoScale.Scale = 1;
+                end;
+            end);
+
+            return;
         end;
 
-        Cursor:Remove();
+        task.spawn(function()
+            local Cursor = Drawing.new('Triangle');
+            Cursor.Thickness = 1;
+            Cursor.Filled = true;
+
+            while Outer.Visible do
+                local mPos = Workspace.CurrentCamera:WorldToViewportPoint(Mouse.Hit.p);
+
+                Cursor.Color = Library.AccentColor;
+                Cursor.PointA = Vector2.new(mPos.X, mPos.Y);
+                Cursor.PointB = Vector2.new(mPos.X, mPos.Y) + Vector2.new(6, 14);
+                Cursor.PointC = Vector2.new(mPos.X, mPos.Y) + Vector2.new(-6, 14);
+
+                Cursor.Visible = not InputService.MouseIconEnabled;
+
+                RenderStepped:Wait();
+            end;
+
+            Cursor:Remove();
+        end);
     end
 
     Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
@@ -3868,6 +3764,8 @@ function Library:CreateWindow(...)
             if Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode.Name == Library.ToggleKeybind.Value then
                 task.spawn(Library.Toggle)
             end
+        elseif Input.KeyCode == Enum.KeyCode.RightShift and not Processed then
+            task.spawn(Library.Toggle)
         end
 
         if Input:IsModifierKeyDown(Enum.ModifierKey.Ctrl) and Outer.Visible then
@@ -3896,6 +3794,8 @@ function Library:CreateWindow(...)
             end
         end
     end))
+
+    if Config.AutoShow then task.spawn(Library.Toggle) end
 
     Window.Holder = Outer;
 
