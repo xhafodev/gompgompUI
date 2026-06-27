@@ -76,16 +76,39 @@ function Library:SetKeybindShowOnlyActive(Bool)
     Library:RefreshAllKeybinds();
 end;
 
-function Library:SetKeybindTransparency(Value)
-    Library.KeybindTransparency = math.clamp(Value, 0, 1);
+function Library:ApplyKeybindTransparency()
+    local Transparency = Library.KeybindTransparency or 0;
+
+    if Library.KeybindOuter then
+        Library.KeybindOuter.BackgroundTransparency = 1;
+        Library.KeybindOuter.BorderSizePixel = 0;
+    end;
 
     if Library.KeybindInner then
-        Library.KeybindInner.BackgroundTransparency = Library.KeybindTransparency;
+        Library.KeybindInner.BackgroundTransparency = Transparency;
+
+        if Transparency >= 0.95 then
+            Library.KeybindInner.BorderSizePixel = 0;
+        else
+            Library.KeybindInner.BorderSizePixel = 1;
+        end;
     end;
 
     if Library.KeybindGradientFrame then
-        Library.KeybindGradientFrame.BackgroundTransparency = Library.KeybindTransparency;
+        Library.KeybindGradientFrame.BackgroundTransparency = Transparency;
     end;
+
+    if Library.KeybindGradient then
+        Library.KeybindGradient.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, Transparency),
+            NumberSequenceKeypoint.new(1, Transparency),
+        });
+    end;
+end;
+
+function Library:SetKeybindTransparency(Value)
+    Library.KeybindTransparency = math.clamp(Value, 0, 1);
+    Library:ApplyKeybindTransparency();
 end;
 
 local RainbowStep = 0
@@ -378,6 +401,8 @@ function Library:UpdateColorsUsingRegistry()
             end
         end;
     end;
+
+    Library:ApplyKeybindTransparency();
 end;
 
 function Library:GiveSignal(Signal)
@@ -415,11 +440,29 @@ local BaseAddons = {};
 do
     local Funcs = {};
 
+    local function GetAddonHost(ParentObj)
+        return ParentObj.KeybindHost or ParentObj.TextLabel;
+    end;
+
+    local function GetAddonRightOffset(ParentObj, SkipAddon)
+        local Offset = 2;
+
+        if ParentObj.Addons then
+            for _, Addon in next, ParentObj.Addons do
+                if Addon ~= SkipAddon and (Addon.Type == 'KeyPicker' or Addon.Type == 'ColorPicker') then
+                    Offset = Offset + 32;
+                end;
+            end;
+        end;
+
+        return Offset;
+    end;
+
     function Funcs:AddColorPicker(Idx, Info)
-        local ToggleLabel = self.TextLabel;
+        local ParentObj = self;
         local Container = self.Container;
 
-        local         ColorPicker = {
+        local ColorPicker = {
             Value = Info.Default;
             Type = 'ColorPicker';
             Title = Library:FormatText(type(Info.Title) == 'string' and Info.Title or 'colorpicker'),
@@ -436,13 +479,18 @@ do
 
         ColorPicker:SetHSVFromRGB(ColorPicker.Value);
 
+        local Host = GetAddonHost(ParentObj);
+        local RightOffset = GetAddonRightOffset(ParentObj, nil);
+
         local DisplayFrame = Library:Create('Frame', {
             BackgroundColor3 = ColorPicker.Value;
             BorderColor3 = Library:GetDarkerColor(ColorPicker.Value);
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(0, 28, 0, 14);
+            AnchorPoint = Vector2.new(1, 0.5);
+            Position = UDim2.new(1, -RightOffset, 0.5, 0);
             ZIndex = 6;
-            Parent = ToggleLabel;
+            Parent = Host;
         });
 
         local RelativeOffset = 0;
@@ -839,6 +887,10 @@ do
         ColorPicker:Display();
         ColorPicker.DisplayFrame = DisplayFrame
 
+        if ParentObj.Addons then
+            table.insert(ParentObj.Addons, ColorPicker);
+        end;
+
         Options[Idx] = ColorPicker;
 
         return self;
@@ -866,6 +918,14 @@ do
             return Library:FormatText(Key);
         end;
 
+        local function FormatKeyBracket(Key)
+            if Key == nil or Key == '' or Key == 'None' then
+                return '[...]';
+            end;
+
+            return '[' .. Library:FormatText(Key) .. ']';
+        end;
+
         if KeyPicker.SyncToggleState then
             Info.Modes = { 'Toggle' }
             Info.Mode = 'Toggle'
@@ -883,9 +943,9 @@ do
             BorderColor3 = Color3.new(0, 0, 0);
             Size = UDim2.new(0, 28, 0, 15);
             AnchorPoint = Vector2.new(1, 0.5);
-            Position = UDim2.new(1, -2, 0.5, 0);
+            Position = UDim2.new(1, -GetAddonRightOffset(ParentObj, KeyPicker), 0.5, 0);
             ZIndex = 6;
-            Parent = ParentObj.KeybindHost or ParentObj.TextLabel;
+            Parent = GetAddonHost(ParentObj);
         });
 
         local PickInner = Library:Create('Frame', {
@@ -948,28 +1008,17 @@ do
             Parent = Library.KeybindContainer;
         });
 
-        local NameLabel = Library:CreateLabel2({
-            Size = UDim2.new(1, -36, 1, 0);
-            Position = UDim2.fromOffset(0, 0);
+        local RowLabel = Library:CreateLabel2({
+            Size = UDim2.new(1, 0, 1, 0);
             TextXAlignment = Enum.TextXAlignment.Left;
             TextSize = 13;
-            Text = Info.Text or '';
-            ZIndex = 111;
-            Parent = ContainerRow;
-        }, true);
-
-        local KeyLabel = Library:CreateLabel2({
-            Size = UDim2.new(0, 32, 1, 0);
-            AnchorPoint = Vector2.new(1, 0);
-            Position = UDim2.new(1, 0, 0, 0);
-            TextXAlignment = Enum.TextXAlignment.Right;
-            TextSize = 13;
-            Text = FormatKey(KeyPicker.Value);
+            Text = '';
             ZIndex = 111;
             Parent = ContainerRow;
         }, true);
 
         KeyPicker.ParentObject = ParentObj;
+        KeyPicker.RowLabel = RowLabel;
 
         local Modes = Info.Modes or { 'Always', 'Toggle', 'Hold' };
         local ModeButtons = {};
@@ -996,6 +1045,7 @@ do
                 Library.RegistryMap[Label].Properties.TextColor3 = 'AccentColor';
 
                 ModeSelectOuter.Visible = false;
+                KeyPicker:Update();
             end;
 
             function ModeButton:Deselect()
@@ -1029,11 +1079,9 @@ do
                 return;
             end;
 
-            local KeyText = FormatKey(KeyPicker.Value);
+            local ModeText = Library:FormatText(KeyPicker.Mode or 'Toggle');
 
-            NameLabel.Text = Library:FormatText(Info.Text or '');
-            KeyLabel.Text = KeyText;
-            KeyLabel.Size = UDim2.new(0, math.max(KeyLabel.TextBounds.X + 4, 20), 1, 0);
+            RowLabel.Text = string.format('%s %s (%s)', FormatKeyBracket(KeyPicker.Value), Library:FormatText(Info.Text or ''), ModeText);
 
             local IsBound = KeyPicker.Value ~= 'None' and KeyPicker.Value ~= '';
             local IsActive = ParentObj.Type ~= 'Toggle' or ParentObj.Value;
@@ -1050,11 +1098,18 @@ do
                 return;
             end;
 
-            NameLabel.TextColor3 = Library.FontColor2;
-            KeyLabel.TextColor3 = Library.FontColor2;
+            local ColorKey = 'FontColor2';
 
-            Library.RegistryMap[NameLabel].Properties.TextColor3 = 'FontColor2';
-            Library.RegistryMap[KeyLabel].Properties.TextColor3 = 'FontColor2';
+            if ParentObj.Type == 'Toggle' then
+                ColorKey = ParentObj.Value and 'FontColor2' or 'AccentColor';
+            elseif KeyPicker.Mode == 'Hold' then
+                ColorKey = KeyPicker:GetState() and 'FontColor2' or 'AccentColor';
+            else
+                ColorKey = KeyPicker:GetState() and 'FontColor2' or 'AccentColor';
+            end;
+
+            RowLabel.TextColor3 = Library[ColorKey];
+            Library.RegistryMap[RowLabel].Properties.TextColor3 = ColorKey;
 
             Library:RefreshKeybindList();
         end;
@@ -1253,13 +1308,12 @@ do
         if DoesWrap then
             local Y = select(2, Library:GetTextBounds(Text, Library.Font, 14, Vector2.new(TextLabel.AbsoluteSize.X, math.huge)))
             TextLabel.Size = UDim2.new(1, -4, 0, Y)
-        else
-            Label.KeybindHost = TextLabel;
         end
 
         Label.TextLabel = TextLabel;
         Label.KeybindHost = TextLabel;
         Label.Container = Container;
+        Label.Addons = {};
 
         function Label:SetText(Text)
             TextLabel.Text = Text
@@ -1725,8 +1779,11 @@ do
             Toggle:Display();
 
             for _, Addon in next, Toggle.Addons do
-                if Addon.Type == 'KeyPicker' and Addon.SyncToggleState then
-                    Addon.Toggled = Bool
+                if Addon.Type == 'KeyPicker' then
+                    if Addon.SyncToggleState then
+                        Addon.Toggled = Bool
+                    end
+
                     Addon:Update()
                 end
             end
@@ -2491,13 +2548,16 @@ do
 
     local KeybindOuter = Library:Create('Frame', {
         AnchorPoint = Vector2.new(0, 0.5);
-        BorderColor3 = Color3.new(0, 0, 0);
+        BackgroundTransparency = 1;
+        BorderSizePixel = 0;
         Position = UDim2.new(0, 10, 0.5, 0);
         Size = UDim2.new(0, 180, 0, 28);
         Visible = false;
         ZIndex = 100;
         Parent = ScreenGui;
     });
+
+    Library.KeybindOuter = KeybindOuter;
 
     local KeybindInner = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
@@ -2521,7 +2581,7 @@ do
         Parent = KeybindInner;
     });
 
-    Library:Create('UIGradient', {
+    local KeybindGradient = Library:Create('UIGradient', {
         Color = ColorSequence.new({
             ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
             ColorSequenceKeypoint.new(1, Library.MainColor),
@@ -2532,6 +2592,7 @@ do
 
     Library.KeybindInner = KeybindInner;
     Library.KeybindGradientFrame = KeybindGradientFrame;
+    Library.KeybindGradient = KeybindGradient;
 
     local KeybindLabel = Library:CreateLabel2({
         AnchorPoint = Vector2.new(0.5, 0);
@@ -2576,6 +2637,7 @@ do
     Library.KeybindFrame = KeybindOuter;
     Library.KeybindContainer = KeybindContainer;
     Library:MakeDraggable(KeybindOuter);
+    Library:ApplyKeybindTransparency();
 end;
 
 function Library:SetWatermarkVisibility(Bool)
@@ -2602,22 +2664,10 @@ function Library:RefreshKeybindList()
             HasRows = true;
             YSize = YSize + 18;
 
-            local NameWidth = 0;
-            local KeyWidth = 0;
-
             for _, Label in next, Row:GetChildren() do
-                if Label:IsA('TextLabel') then
-                    if Label.TextXAlignment == Enum.TextXAlignment.Right then
-                        KeyWidth = Label.TextBounds.X;
-                    else
-                        NameWidth = Label.TextBounds.X;
-                    end;
+                if Label:IsA('TextLabel') and Label.TextBounds.X > XSize then
+                    XSize = Label.TextBounds.X;
                 end;
-            end;
-
-            local RowWidth = NameWidth + KeyWidth + 30;
-            if RowWidth > XSize then
-                XSize = RowWidth;
             end;
         end;
     end;
