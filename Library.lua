@@ -33,6 +33,7 @@ local Library = {
 
     Font = Enum.Font.Roboto;
     PixelFont = Enum.Font.Code;
+    IntroTextSize = 72;
     FontColor = Color3.fromRGB(255, 255, 255);
     FontColor2 = Color3.fromRGB(255, 255, 255);
     MainColor = Color3.fromRGB(10, 10, 10);
@@ -76,6 +77,10 @@ function Library:AttemptSave()
     if Library.SaveManager then
         Library.SaveManager:Save();
     end;
+end;
+
+function Library:LoadLogoImage()
+    return false;
 end;
 
 function Library:Create(Class, Properties)
@@ -2579,7 +2584,7 @@ function Library:PlayIntro(Callback)
 
     Library.IntroPlayed = true;
 
-    local IntroDuration = 4;
+    local IntroDuration = 7;
     local Start = tick();
 
     local function WaitUntil(Elapsed)
@@ -2601,7 +2606,7 @@ function Library:PlayIntro(Callback)
         BackgroundTransparency = 1;
         AnchorPoint = Vector2.new(0.5, 0.5);
         Position = UDim2.new(0.5, 0, 0.5, 0);
-        Size = UDim2.fromOffset(420, 100);
+        Size = UDim2.fromOffset(480, 120);
         Parent = Intro;
     });
 
@@ -2610,11 +2615,11 @@ function Library:PlayIntro(Callback)
         Font = Library.PixelFont;
         Text = 'gomp';
         TextColor3 = Library.FontColor2;
-        TextSize = 64;
+        TextSize = Library.IntroTextSize;
         TextStrokeTransparency = 0;
-        Size = UDim2.fromOffset(140, 80);
+        Size = UDim2.fromOffset(180, 100);
         AnchorPoint = Vector2.new(0.5, 0.5);
-        Position = UDim2.new(0.5, 0, 0.5, -180);
+        Position = UDim2.new(0.5, 0, 0.5, -220);
         Parent = Group;
     });
 
@@ -2623,40 +2628,40 @@ function Library:PlayIntro(Callback)
         Font = Library.PixelFont;
         Text = 'gomp';
         TextColor3 = Library.AccentColor;
-        TextSize = 64;
+        TextSize = Library.IntroTextSize;
         TextStrokeTransparency = 0;
-        Size = UDim2.fromOffset(140, 80);
+        Size = UDim2.fromOffset(180, 100);
         AnchorPoint = Vector2.new(0, 0.5);
         Position = UDim2.new(1.35, 0, 0.5, 0);
         TextTransparency = 1;
         Parent = Group;
     });
 
-    TweenService:Create(Gomp1, TweenInfo.new(1.2, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
+    TweenService:Create(Gomp1, TweenInfo.new(2, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
         Position = UDim2.new(0.5, 0, 0.5, 0);
     }):Play();
 
-    WaitUntil(1.2);
+    WaitUntil(2);
 
     Gomp2.TextTransparency = 0;
 
-    TweenService:Create(Gomp1, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+    TweenService:Create(Gomp1, TweenInfo.new(1.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         AnchorPoint = Vector2.new(1, 0.5);
-        Position = UDim2.new(0.5, -6, 0.5, 0),
+        Position = UDim2.new(0.5, -8, 0.5, 0),
     }):Play();
 
-    TweenService:Create(Gomp2, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, 6, 0.5, 0),
+    TweenService:Create(Gomp2, TweenInfo.new(1.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0.5, 8, 0.5, 0),
     }):Play();
 
-    WaitUntil(2.2);
-    WaitUntil(3);
+    WaitUntil(4);
+    WaitUntil(5.5);
 
-    TweenService:Create(Gomp1, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(Gomp1, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         TextTransparency = 1;
     }):Play();
 
-    TweenService:Create(Gomp2, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(Gomp2, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         TextTransparency = 1;
     }):Play();
 
