@@ -82,6 +82,47 @@ function Library:AttemptSave()
     end;
 end;
 
+function Library:LoadLogoImage()
+    if not self.LogoImage then
+        return false;
+    end;
+
+    local Folder = self.LogoCacheFolder;
+    local Path = self.LogoCachePath;
+    local Url = self.LogoUrl;
+
+    if not isfolder(Folder) then
+        makefolder(Folder);
+    end;
+
+    if not isfile(Path) then
+        local Success, Data = pcall(game.HttpGet, game, Url);
+
+        if not Success or type(Data) ~= 'string' or #Data == 0 then
+            return false;
+        end;
+
+        writefile(Path, Data);
+    end;
+
+    if getcustomasset then
+        local AssetSuccess, AssetId = pcall(getcustomasset, Path);
+
+        if AssetSuccess and AssetId then
+            self.LogoImage.Image = AssetId;
+            return true;
+        end;
+    end;
+
+    return false;
+end;
+
+function Library:SetLogoVisibility(Bool)
+    if Library.Logo and Library.LogoImage and Library.LogoImage.Image ~= '' then
+        Library.Logo.Visible = Bool;
+    end;
+end;
+
 function Library:Create(Class, Properties)
     local _Instance = Class;
 
@@ -2441,12 +2482,6 @@ do
         Parent = LogoOuter;
     });
 
-    task.spawn(function()
-        Library:LoadLogoImage();
-    end);
-
-
-
     local KeybindOuter = Library:Create('Frame', {
         AnchorPoint = Vector2.new(0, 0.5);
         BorderColor3 = Color3.new(0, 0, 0);
@@ -2596,47 +2631,6 @@ function Library:RefreshKeybindList()
 
     Library.KeybindFrame.Visible = HasRows;
     Library.KeybindFrame.Size = UDim2.new(0, XSize, 0, YSize + 28);
-end;
-
-function Library:LoadLogoImage()
-    if not self.LogoImage then
-        return false;
-    end;
-
-    local Folder = self.LogoCacheFolder;
-    local Path = self.LogoCachePath;
-    local Url = self.LogoUrl;
-
-    if not isfolder(Folder) then
-        makefolder(Folder);
-    end;
-
-    if not isfile(Path) then
-        local Success, Data = pcall(game.HttpGet, game, Url);
-
-        if not Success or type(Data) ~= 'string' or #Data == 0 then
-            return false;
-        end;
-
-        writefile(Path, Data);
-    end;
-
-    if getcustomasset then
-        local AssetSuccess, AssetId = pcall(getcustomasset, Path);
-
-        if AssetSuccess and AssetId then
-            self.LogoImage.Image = AssetId;
-            return true;
-        end;
-    end;
-
-    return false;
-end;
-
-function Library:SetLogoVisibility(Bool)
-    if Library.Logo and Library.LogoImage and Library.LogoImage.Image ~= '' then
-        Library.Logo.Visible = Bool;
-    end;
 end;
 
 function Library:PlayIntro(Callback)
@@ -3851,5 +3845,9 @@ function Library:CreateWindow(...)
 
     return Window;
 end;
+
+task.defer(function()
+    Library:LoadLogoImage();
+end);
 
 return Library
