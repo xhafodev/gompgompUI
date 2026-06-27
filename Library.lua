@@ -16,7 +16,7 @@ local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 local ScreenGui = Instance.new('ScreenGui');
 ProtectGui(ScreenGui);
 
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
 ScreenGui.Parent = CoreGui;
 
 local Toggles = {};
@@ -32,8 +32,8 @@ local Library = {
     HudRegistry = {};
 
     Font = Enum.Font.Roboto;
-    PixelFont = Enum.Font.Code;
-    IntroTextSize = 72;
+    IntroTextSize = 52;
+    IntroPixelGap = 60;
     FontColor = Color3.fromRGB(255, 255, 255);
     FontColor2 = Color3.fromRGB(255, 255, 255);
     MainColor = Color3.fromRGB(10, 10, 10);
@@ -95,6 +95,47 @@ function Library:Create(Class, Properties)
     end;
 
     return _Instance;
+end;
+
+function Library:GetPixelFontFace()
+    if Library._PixelFontFace then
+        return Library._PixelFontFace;
+    end;
+
+    local Ok, Face = pcall(function()
+        return Font.new('rbxasset://fonts/families/PressStart2P.json', Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+    end);
+
+    if Ok and Face then
+        Library._PixelFontFace = Face;
+    else
+        Ok, Face = pcall(function()
+            return Font.fromEnum(Enum.Font.RobotoMono);
+        end);
+
+        Library._PixelFontFace = Ok and Face or Font.fromEnum(Enum.Font.Code);
+    end;
+
+    return Library._PixelFontFace;
+end;
+
+function Library:TweenIntroStep(Duration, EasingStyle, EasingDirection, Step)
+    local Info = TweenInfo.new(Duration, EasingStyle, EasingDirection);
+    local StartTime = tick();
+
+    while true do
+        local Elapsed = tick() - StartTime;
+        local Alpha = math.clamp(Elapsed / Duration, 0, 1);
+        local T = TweenService:GetValue(Alpha, Info.EasingStyle, Info.EasingDirection);
+
+        Step(T);
+
+        if Alpha >= 1 then
+            break;
+        end;
+
+        RenderStepped:Wait();
+    end;
 end;
 
 function Library:FormatText(Text)
@@ -2573,6 +2614,22 @@ function Library:RefreshKeybindList()
     Library.KeybindFrame.Size = UDim2.new(0, XSize, 0, YSize + 28);
 end;
 
+function Library:CreateIntroDrawText(Text, Color)
+    local Label = Drawing.new('Text');
+
+    Label.Text = Text;
+    Label.Font = 3;
+    Label.Size = Library.IntroTextSize;
+    Label.Color = Color;
+    Label.Outline = true;
+    Label.OutlineColor = Color3.new(0, 0, 0);
+    Label.Center = true;
+    Label.Visible = true;
+    Label.Transparency = 0;
+
+    return Label;
+end;
+
 function Library:PlayIntro(Callback)
     if Library.IntroPlayed then
         if Callback then
@@ -2586,6 +2643,13 @@ function Library:PlayIntro(Callback)
 
     local IntroDuration = 7;
     local Start = tick();
+    local Camera = Workspace.CurrentCamera;
+
+    local function GetCenter()
+        local Viewport = Camera.ViewportSize;
+
+        return Viewport.X / 2, Viewport.Y / 2;
+    end;
 
     local function WaitUntil(Elapsed)
         local Remaining = Elapsed - (tick() - Start);
@@ -2593,6 +2657,61 @@ function Library:PlayIntro(Callback)
         if Remaining > 0 then
             task.wait(Remaining);
         end;
+    end;
+
+    local function FinishIntro()
+        if Callback then
+            Callback();
+        end;
+    end;
+
+    local UseDrawing = typeof(Drawing) == 'table' and typeof(Drawing.new) == 'function';
+
+    if UseDrawing then
+        local CenterX, CenterY = GetCenter();
+        local Gap = Library.IntroPixelGap;
+
+        local Gomp1 = Library:CreateIntroDrawText('gomp', Library.FontColor2);
+        local Gomp2 = Library:CreateIntroDrawText('gomp', Library.AccentColor);
+
+        Gomp1.Position = Vector2.new(CenterX, CenterY - 220);
+        Gomp2.Position = Vector2.new(CenterX + Gap * 3, CenterY);
+        Gomp2.Transparency = 1;
+
+        Library:TweenIntroStep(2, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out, function(T)
+            Gomp1.Position = Vector2.new(CenterX, CenterY - 220 + (220 * T));
+        end);
+
+        WaitUntil(2);
+
+        Gomp2.Transparency = 0;
+
+        local Gomp1Start = Gomp1.Position;
+        local Gomp1Goal = Vector2.new(CenterX - Gap, CenterY);
+        local Gomp2Start = Gomp2.Position;
+        local Gomp2Goal = Vector2.new(CenterX + Gap, CenterY);
+
+        Library:TweenIntroStep(1.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, function(T)
+            Gomp1.Position = Gomp1Start:Lerp(Gomp1Goal, T);
+            Gomp2.Position = Gomp2Start:Lerp(Gomp2Goal, T);
+        end);
+
+        WaitUntil(4);
+        WaitUntil(5.5);
+
+        Library:TweenIntroStep(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, function(T)
+            Gomp1.Transparency = T;
+            Gomp2.Transparency = T;
+        end);
+
+        WaitUntil(IntroDuration);
+
+        Gomp1:Remove();
+        Gomp2:Remove();
+
+        FinishIntro();
+
+        return;
     end;
 
     local Intro = Library:Create('Frame', {
@@ -2607,12 +2726,15 @@ function Library:PlayIntro(Callback)
         AnchorPoint = Vector2.new(0.5, 0.5);
         Position = UDim2.new(0.5, 0, 0.5, 0);
         Size = UDim2.fromOffset(480, 120);
+        ZIndex = 501;
         Parent = Intro;
     });
 
+    local PixelFace = Library:GetPixelFontFace();
+
     local Gomp1 = Library:Create('TextLabel', {
         BackgroundTransparency = 1;
-        Font = Library.PixelFont;
+        FontFace = PixelFace;
         Text = 'gomp';
         TextColor3 = Library.FontColor2;
         TextSize = Library.IntroTextSize;
@@ -2620,12 +2742,13 @@ function Library:PlayIntro(Callback)
         Size = UDim2.fromOffset(180, 100);
         AnchorPoint = Vector2.new(0.5, 0.5);
         Position = UDim2.new(0.5, 0, 0.5, -220);
+        ZIndex = 502;
         Parent = Group;
     });
 
     local Gomp2 = Library:Create('TextLabel', {
         BackgroundTransparency = 1;
-        Font = Library.PixelFont;
+        FontFace = PixelFace;
         Text = 'gomp';
         TextColor3 = Library.AccentColor;
         TextSize = Library.IntroTextSize;
@@ -2634,6 +2757,7 @@ function Library:PlayIntro(Callback)
         AnchorPoint = Vector2.new(0, 0.5);
         Position = UDim2.new(1.35, 0, 0.5, 0);
         TextTransparency = 1;
+        ZIndex = 502;
         Parent = Group;
     });
 
@@ -2669,9 +2793,7 @@ function Library:PlayIntro(Callback)
 
     Intro:Destroy();
 
-    if Callback then
-        Callback();
-    end;
+    FinishIntro();
 end;
 
 function Library:StartWatermark()
@@ -2861,7 +2983,7 @@ function Library:CreateWindow(...)
         Position = Config.Position,
         Size = Config.Size,
         Visible = false;
-        ZIndex = 100;
+        ZIndex = 1;
         Parent = ScreenGui;
     });
 
@@ -2873,7 +2995,7 @@ function Library:CreateWindow(...)
         BorderMode = Enum.BorderMode.Inset;
         Position = UDim2.new(0, 1, 0, 1);
         Size = UDim2.new(1, -2, 1, -2);
-        ZIndex = 1;
+        ZIndex = 2;
         Parent = Outer;
     });
 
