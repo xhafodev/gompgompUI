@@ -1111,7 +1111,10 @@ do
                 Library.RegistryMap[Label].Properties.TextColor3 = 'AccentColor';
 
                 ModeSelectOuter.Visible = false;
-                KeyPicker:Update();
+
+                if KeyPicker.Update then
+                    KeyPicker:Update();
+                end;
             end;
 
             function ModeButton:Deselect()
@@ -1129,7 +1132,8 @@ do
             end);
 
             if Mode == KeyPicker.Mode then
-                ModeButton:Select();
+                Label.TextColor3 = Library.AccentColor;
+                Library.RegistryMap[Label].Properties.TextColor3 = 'AccentColor';
             end;
 
             ModeButtons[Mode] = ModeButton;
