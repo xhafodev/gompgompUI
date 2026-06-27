@@ -1,7 +1,8 @@
-local httpService = game:GetService('HttpService')
+local cloneref = cloneref or function(Object) return Object end
+local httpService = cloneref(game:GetService('HttpService'))
 
 local SaveManager = {} do
-	SaveManager.Folder = 'LinoriaLibSettings'
+	SaveManager.Folder = 'gompgompSettings'
 	SaveManager.Ignore = {}
 	SaveManager.Parser = {
 		Toggle = {
